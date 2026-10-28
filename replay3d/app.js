@@ -100,7 +100,7 @@ const comparison=new URLSearchParams(location.search).get('comparison');
 if(data.comparisons?.[comparison]){
  data.runs=data.comparisons[comparison].runs;
  document.querySelector('.wordmark').innerHTML='TRAJECTORY <em>'+(data.comparisons[comparison].title||'TRAINED QWEN COMPARISON')+'</em>';
- const button=document.createElement('button');button.dataset.camera='duel';button.textContent='Both cars';document.querySelector('.views').prepend(button);
+ const button=document.createElement('button');button.dataset.camera='duel';button.textContent=data.runs.length>2?'All cars':'Both cars';document.querySelector('.views').prepend(button);
 }
 const wingWordmark=data.wordmark_svg?await new THREE.TextureLoader().loadAsync('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(data.wordmark_svg.replace('<svg ', '<svg width="1187" height="256" '))):null;
 if(wingWordmark){wingWordmark.colorSpace=THREE.SRGBColorSpace;wingWordmark.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());}
@@ -193,7 +193,7 @@ function car(color,number,branded=false){
  const tail=new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.13),new THREE.MeshStandardMaterial({color:'#ff3c24',emissive:'#ff1e00',emissiveIntensity:3}));tail.position.set(-2.72,.35,0);g.add(tail);
  g.userData.wheels=wheels;scene.add(g);return g;
 }
-const cars=data.runs.map((r,i)=>car(r.color,i?'02':'01',r.wordmark));
+const cars=data.runs.map((r,i)=>car(r.color,String(i+1).padStart(2,'0'),r.wordmark));
 // Clone shared materials so fading a car cannot fade track furniture.
 cars.forEach((car,i)=>{
  const materials=new Map();car.userData.opacity=1;car.userData.surfaces=[];
@@ -225,7 +225,7 @@ for(const [x,color] of [[125,'#7584b9'],[300,'#c6795b']]){const spare=car(color,
 const markers=data.runs.map(r=>{const m=new THREE.Mesh(new THREE.SphereGeometry(7,16,12),new THREE.MeshBasicMaterial({color:r.color}));scene.add(m);return m;});
 let selected=0,mode='chase',t=0,rate=1,playing=true,last=performance.now(),snap=true;
 const tmax=Math.max(...data.runs.map(r=>r.lap));$('scrub').max=tmax;
-$('drivers').innerHTML=data.runs.map((r,i)=>`<button class="driver ${i?'':'active'}" data-driver="${i}"><span class="rank">0${i+1}</span><span><strong><i class="dot" style="background:${r.color}"></i>${r.short==='QWEN'?'Trained Qwen':r.short==='OPUS'?'Claude Opus':r.short}</strong></span><span class="lap">0.000</span></button>`).join('');
+$('drivers').innerHTML=data.runs.map((r,i)=>`<button class="driver ${i?'':'active'}" data-driver="${i}"><span class="rank">0${i+1}</span><span><strong><i class="dot" style="background:${r.color}"></i>${r.short==='QWEN'?'Trained Qwen':r.short==='OPUS'?'Claude Opus':r.label||r.short}</strong></span><span class="lap">0.000</span></button>`).join('');
 const lapTimers=document.querySelectorAll('#drivers .lap');
 function sample(run,time){const a=run.trace;let lo=0,hi=a.length-1;while(lo<hi){const m=Math.ceil((lo+hi)/2);if(a[m][0]<=time)lo=m;else hi=m-1;}const x=a[lo],y=a[Math.min(lo+1,a.length-1)],f=clamp((time-x[0])/(y[0]-x[0]||1),0,1);const v=x.map((n,i)=>n+(y[i]-n)*f);v[3]=x[3]+Math.atan2(Math.sin(y[3]-x[3]),Math.cos(y[3]-x[3]))*f;return v;}
 const map=$('minimap'),ctx=map.getContext('2d');const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
@@ -234,15 +234,16 @@ function drawMap(states){ctx.clearRect(0,0,440,220);ctx.strokeStyle='#697d88';ct
 // Compile cuts from replay time, so scrubbing and offline capture use the same director.
 function makeBroadcastShots(runs){
  const end=Math.max(...runs.map(r=>r.lap)),firstFinish=Math.min(...runs.map(r=>r.lap));
- const winningDriver=runs[0].lap<=runs[1].lap?0:1;
+ const winningDriver=runs.reduce((best,run,i)=>run.lap<runs[best].lap?i:best,0);
  const cycle=['front','trackside','drone','cockpit','chase'];
  const shots=[{start:0,kind:'drone',driver:0,reason:'Opening shot'}];
  let nextCut=7,sequence=0,stableLeader=null,lastBattle=-20,pendingPass=null;
  const cut=(time,kind,driver,reason,duration)=>{shots.push({start:time,kind,driver,reason});nextCut=time+duration;};
  for(let time=.25;time<end;time+=.25){
-  const a=sample(runs[0],time),b=sample(runs[1],time),gap=a[9]-b[9];
-  const leader=gap>=0?0:1,previousLeader=stableLeader;
-  if(Math.abs(gap)>1.5)stableLeader=leader; // Ignore near-ties and launch jitter.
+  const states=runs.map(run=>sample(run,time));
+  const order=states.map((_,i)=>i).sort((a,b)=>states[b][9]-states[a][9]);
+  const leader=order[0],runnerUp=order[1],gap=states[leader][9]-states[runnerUp][9],previousLeader=stableLeader;
+  if(gap>1.5)stableLeader=leader; // Ignore near-ties and launch jitter.
   const changed=previousLeader!==null&&stableLeader!==previousLeader;
   if(changed&&time>3)pendingPass={time,driver:previousLeader,leader:stableLeader};
   const sinceCut=time-shots.at(-1).start;
@@ -250,13 +251,17 @@ function makeBroadcastShots(runs){
   if(pendingPass&&pendingPass.leader===stableLeader&&time-pendingPass.time<6&&sinceCut>=5){
    cut(time,'cockpit',pendingPass.driver,'Lead change',7);pendingPass=null;lastBattle=time;continue;
   }
-  const oldGap=Math.abs(sample(runs[0],Math.max(0,time-1))[9]-sample(runs[1],Math.max(0,time-1))[9]);
-  const close=Math.abs(gap)>3&&Math.abs(gap)<28&&Math.hypot(a[1]-b[1],a[2]-b[2])<40;
-  if(time>4&&close&&oldGap-Math.abs(gap)>1.5&&time-lastBattle>=14&&sinceCut>=5){
-   cut(time,'cockpit',1-leader,'Closing battle',7);lastBattle=time;continue;
+  // Watch the closest adjacent pair, including battles behind the leader.
+  let front=order[0],behind=order[1];
+  for(let j=1;j<order.length-1;j++)if(states[order[j]][9]-states[order[j+1]][9]<states[front][9]-states[behind][9]){front=order[j];behind=order[j+1];}
+  const a=states[front],b=states[behind],battleGap=a[9]-b[9];
+  const oldGap=Math.abs(sample(runs[front],Math.max(0,time-1))[9]-sample(runs[behind],Math.max(0,time-1))[9]);
+  const close=battleGap>3&&battleGap<28&&Math.hypot(a[1]-b[1],a[2]-b[2])<40;
+  if(time>4&&close&&oldGap-battleGap>1.5&&time-lastBattle>=14&&sinceCut>=5){
+   cut(time,'cockpit',behind,'Closing battle',7);lastBattle=time;continue;
   }
   if(time>=nextCut){
-   const kind=cycle[sequence%cycle.length],driver=sequence%3===1?1-leader:leader;
+   const kind=cycle[sequence%cycle.length],driver=sequence%runs.length;
    cut(time,kind,driver,'Race coverage',kind==='drone'?8:7);sequence++;
   }
  }
@@ -274,10 +279,11 @@ function broadcastCamera(shot,states,forward,side){
  targetGoal.copy(car.position);targetGoal.y=.6;
  let fov=43;
  if(shot.kind==='drone'){
-  const separation=cars[0].position.distanceTo(cars[1].position),pairWeight=1-THREE.MathUtils.smoothstep(separation,25,60);
-  targetGoal.lerp(cars[1-shot.driver].position,pairWeight*.5);
+  let totalWeight=1,separation=0;targetGoal.copy(car.position);
+  for(const other of cars){if(other===car)continue;const distance=car.position.distanceTo(other.position),weight=1-THREE.MathUtils.smoothstep(distance,25,60);targetGoal.addScaledVector(other.position,weight);totalWeight+=weight;separation=Math.max(separation,distance*weight);}
+  targetGoal.divideScalar(totalWeight);targetGoal.y=.6;
   cameraGoal.copy(targetGoal).addScaledVector(forward,-22).addScaledVector(side,18);
-  cameraGoal.y=30+Math.min(separation,60)*pairWeight*.45;fov=50;
+  cameraGoal.y=30+Math.min(separation,60)*.45;fov=50;
  }else if(shot.kind==='front'){
   cameraGoal.copy(car.position).addScaledVector(forward,16).addScaledVector(side,2.5);cameraGoal.y=2.5;fov=38;
  }else if(shot.kind==='cockpit'){
@@ -310,7 +316,7 @@ function tick(now){if(!captureMode)requestAnimationFrame(tick);const dt=clamp((n
  crowdTime.value=t;
  const states=data.runs.map(r=>sample(r,t));states.forEach((s,i)=>{const c=cars[i];c.position.set(s[1],0,-s[2]);c.rotation.y=s[3];c.userData.wheels.forEach(w=>{w.pivot.rotation.y=w.front?s[5]*.35:0;w.wheel.rotation.z=-s[9]/.37;});});
  // Fade both overlapping ghosts; ease back to solid across two metres.
- const opacity=.6+.4*THREE.MathUtils.smoothstep(footprintClearance(states[0],states[1]),0,2);
+ const opacities=states.map((state,i)=>{const clearance=Math.min(...states.filter((_,j)=>i!==j).map(other=>footprintClearance(state,other)));return .6+.4*THREE.MathUtils.smoothstep(clearance,0,2);});
  if(mode==='f1'){
   const shot=broadcastShots.findLast(shot=>shot.start<=t)||broadcastShots[0];
   if(shot!==broadcastShot){broadcastShot=shot;selectDriver(shot.driver);snap=true;}
@@ -318,15 +324,15 @@ function tick(now){if(!captureMode)requestAnimationFrame(tick);const dt=clamp((n
  const c=cars[selected],s=states[selected],forward=new THREE.Vector3(Math.cos(s[3]),0,-Math.sin(s[3])),side=new THREE.Vector3(Math.sin(s[3]),0,Math.cos(s[3]));
  if(mode==='f1'){broadcastCamera(broadcastShot,states,forward,side);}
  else if(mode==='chase'){cameraGoal.copy(c.position).addScaledVector(forward,-11).addScaledVector(side,7);cameraGoal.y=4.0;targetGoal.copy(c.position).addScaledVector(forward,innerWidth<600?0:2);targetGoal.y=.5;}
- else if(mode==='duel'){const separation=cars[0].position.distanceTo(cars[1].position);targetGoal.copy(cars[0].position).add(cars[1].position).multiplyScalar(.5);targetGoal.y=.5;cameraGoal.copy(targetGoal).addScaledVector(forward,-(18+separation*1.3)).addScaledVector(side,10+separation*.15);cameraGoal.y=7+separation*.5;}
+ else if(mode==='duel'){targetGoal.set(0,0,0);cars.forEach(car=>targetGoal.add(car.position));targetGoal.divideScalar(cars.length);const separation=2*Math.max(...cars.map(car=>targetGoal.distanceTo(car.position)));targetGoal.y=.5;cameraGoal.copy(targetGoal).addScaledVector(forward,-(18+separation*1.3)).addScaledVector(side,10+separation*.15);cameraGoal.y=7+separation*.5;}
  else if(mode==='cockpit'){cameraGoal.copy(c.position).addScaledVector(forward,.65);cameraGoal.y=1.08;targetGoal.copy(c.position).addScaledVector(forward,35);targetGoal.y=1.05;}
  else if(mode==='aerial'){cameraGoal.set(650,1550,500);targetGoal.set(650,0,110);}
- if(mode!=='orbit'){const blend=snap||mode==='f1'?1:1-Math.exp(-dt*(mode==='cockpit'?70:7));camera.position.lerp(cameraGoal,blend);look.lerp(targetGoal,blend);camera.lookAt(look);}else controls.update();snap=false;
+ if(mode!=='orbit'){if(snap||mode==='f1'){camera.position.copy(cameraGoal);look.copy(targetGoal);}else{const blend=1-Math.exp(-dt*(mode==='cockpit'?70:7));camera.position.lerp(cameraGoal,blend);look.lerp(targetGoal,blend);}camera.lookAt(look);}else controls.update();snap=false;
  // Align the moving shadow camera to its texel grid to avoid crawling shadows.
  shadowAnchor.copy(c.position);
  for(const axis of [shadowRight,shadowUp]){const value=c.position.dot(axis);shadowAnchor.addScaledVector(axis,Math.round(value/shadowTexel)*shadowTexel-value);}
  sun.position.copy(shadowAnchor).add(sunOffset);sun.target.position.copy(shadowAnchor);sun.target.updateMatrixWorld();
- cars.forEach((car,i)=>setCarOpacity(car,opacity,i));markers.forEach((m,i)=>{m.visible=mode==='aerial';m.position.copy(cars[i].position);m.position.y=10;});
+ cars.forEach((car,i)=>setCarOpacity(car,opacities[i],i));markers.forEach((m,i)=>{m.visible=mode==='aerial';m.position.copy(cars[i].position);m.position.y=10;});
  $('speed').textContent=Math.round(t>=data.runs[selected].lap?0:s[4]*3.6);$('throttle').style.height=(t>=data.runs[selected].lap?0:s[6]*100)+'%';$('brake').style.height=(t>=data.runs[selected].lap?0:s[7]*100)+'%';
  $('clock').textContent=`${Math.floor(t/60)}:${(t%60).toFixed(2).padStart(5,'0')}`;$('scrub').value=t;$('play').textContent=playing?'Ⅱ':'▶';$('play').setAttribute('aria-label',playing?'Pause':'Play');
  lapTimers.forEach((el,i)=>{el.textContent=Math.min(t,data.runs[i].lap).toFixed(3);});

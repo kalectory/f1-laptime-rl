@@ -26,6 +26,20 @@
       "selection_note": "Winner of the step-228 training batch; selected as the best observed program across training steps, not a fresh held-out best-of-128 evaluation.",
       "source_sha256": "9e5c781271fb89f726a2dc162c4498abea12d184da20f67104c892b8242ba7a2",
       "formatting_note": "Trailing whitespace removed; policy logic unchanged."
+    },
+    {
+      "policy": "examples/gpt6_astra_eval.py",
+      "model": "openai/gpt-6-astra",
+      "lap_time_s": 73.28586070107295,
+      "trajectory_id": "traj_06ae242388ac73b08000322c75e3bba0",
+      "eval_run_id": "evr_06ae241b77e576d8800003c504ffdce7",
+      "source": "evaluation",
+      "samples_in_source_batch": 1,
+      "selection_note": "The single completed attempt in this platform evaluation; not a best-of-128 selection.",
+      "reasoning_effort": "max",
+      "sha256": "3ccaed61169e0f6cf776c61c86b1d82483d1d2dafb69c501a020c71785938ca8",
+      "source_sha256": "3ccaed61169e0f6cf776c61c86b1d82483d1d2dafb69c501a020c71785938ca8",
+      "formatting_note": "Trailing whitespace removed; policy logic unchanged."
     }
   ],
   "comparison_note": "Selected individual programs on the same deterministic circuit, not a matched evaluation of model distributions.",

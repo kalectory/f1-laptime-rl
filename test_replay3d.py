@@ -46,43 +46,50 @@ def main():
             assert scenery['pitCrew'] >= 80
             assert scenery['trees'] >= 1000 and scenery['parkedCars'] > 50
             assert "Trained Qwen" in page.locator("#drivers").inner_text()
+            assert "GPT-6 Astra" in page.locator("#drivers").inner_text()
+            assert page.locator("#drivers .lap").count() == 3
             for time in [5, 5.03, 5.06, 8, 12]:
                 page.evaluate('t => replay3d.render(t)', time)
                 state = page.evaluate('replay3d.state')
                 assert all(state['visibleCars'])
-                assert all(alpha == .6 for alpha in state['carOpacity'])
+                assert state['carOpacity'][:2] == [.6, .6]
+                assert .6 <= state['carOpacity'][2] <= 1
                 assert state['visibleCars'][state['selected']]
                 assert page.locator('#hint, #gap').count() == 0
             page.evaluate('replay3d.render(17)')
             assert all(page.evaluate('replay3d.state.visibleCars'))
-            assert page.evaluate('replay3d.state.carOpacity') == [1, 1]
+            assert page.evaluate('replay3d.state.carOpacity')[:2] == [1, 1]
             shots = page.evaluate("replay3d.state.broadcastShots")
             assert {"drone", "front", "trackside", "cockpit", "chase", "finish"} <= {
                 shot["kind"] for shot in shots
             }
             assert all(b["start"] - a["start"] >= 5
                        for a, b in zip(shots, shots[1:]) if b["kind"] != "finish")
+            assert {s["driver"] for s in shots} == {0, 1, 2}
+            assert shots[-1]["driver"] == 2
             for shot in shots:
                 page.evaluate("t => replay3d.render(t)", shot["start"] + .1)
                 state = page.evaluate("replay3d.state")
                 assert state["broadcastShot"] == shot
                 assert all(math.isfinite(v) for v in state["cameraPosition"])
             page.evaluate("replay3d.render(12)")
-            assert page.locator("#drivers .lap").all_text_contents() == ["12.000", "12.000"]
+            assert page.locator("#drivers .lap").all_text_contents() == ["12.000"] * 3
             before = page.evaluate("replay3d.state")
             page.evaluate("replay3d.render(60); replay3d.render(12)")
-            assert before == page.evaluate("replay3d.state"), "Scrubbing changed camera"
+            after = page.evaluate("replay3d.state")
+            assert before == after, {key: [before[key], after[key]] for key in before if before[key] != after[key]}
             assert page.locator('#cinematic').get_attribute('aria-pressed') == 'true'
             page.locator('#cinematic').click()
             assert page.locator('#cinematic').get_attribute('aria-pressed') == 'false'
             assert before['positions'] == page.evaluate('replay3d.state.positions')
             page.locator('#cinematic').click()
-            page.locator('[data-driver="1"]').click()
+            page.locator('[data-driver="2"]').click()
+            assert page.evaluate('replay3d.state.selected') == 2
             assert page.evaluate("replay3d.state.mode") == "chase"
             page.locator('[data-camera="f1"]').click()
             page.evaluate("replay3d.render(0)")
             assert all(abs(pos[0]) < 1e-8 for pos in page.evaluate("replay3d.state.positions"))
-            assert page.locator("#drivers .lap").all_text_contents() == ["0.000", "0.000"]
+            assert page.locator("#drivers .lap").all_text_contents() == ["0.000"] * 3
             laps = page.evaluate("replay3d.state.laps")
             for i, lap in enumerate(laps):
                 page.evaluate("t => replay3d.render(t)", lap - .001)
@@ -101,6 +108,9 @@ def main():
                 run["lap"] = 30 + i
                 run["trace"] = [[t / 4, (50 + 2*i)*t/4 - 20*i, 0, 0, 50 + 2*i,
                                  0, 1, 0, 0, (50 + 2*i)*t/4 - 20*i] for t in range(125)]
+            third = synthetic['comparisons']['champions']['runs'][2]
+            third['lap'] = 20
+            third['trace'] = [[t/4, 40*t/4-200, 0, 0, 40, 0, 1, 0, 0, 40*t/4-200] for t in range(125)]
             page.route("**/data.json", lambda route: route.fulfill(json=synthetic))
             page.reload()
             page.wait_for_function("window.replay3d", timeout=60000)
@@ -109,7 +119,8 @@ def main():
             assert passes[0]["kind"] == "cockpit" and passes[0]["start"] > 10
             page.evaluate('replay3d.render(10)')
             assert all(page.evaluate('replay3d.state.visibleCars'))
-            assert page.evaluate('replay3d.state.carOpacity') == [.6, .6]
+            assert page.evaluate('replay3d.state.carOpacity') == [.6, .6, 1]
+            assert page.evaluate('replay3d.state.broadcastShots.at(-1).driver') == 2
             # Close side-by-side cars should both remain visible.
             for sample in synthetic['comparisons']['champions']['runs'][1]['trace']:
                 sample[2] = 3
@@ -117,6 +128,15 @@ def main():
             page.wait_for_function('window.replay3d', timeout=60000)
             page.evaluate('replay3d.render(10)')
             assert all(page.evaluate('replay3d.state.visibleCars'))
+            # An overlap involving only the third car must not fade the second.
+            for a, b, c in zip(synthetic['comparisons']['champions']['runs'][0]['trace'], synthetic['comparisons']['champions']['runs'][1]['trace'], third['trace']):
+                b[2] = 10
+                c[1] = a[1] + .1
+                c[9] = a[9] + .1
+            page.reload()
+            page.wait_for_function('window.replay3d', timeout=60000)
+            page.evaluate('replay3d.render(10)')
+            assert page.evaluate('replay3d.state.carOpacity') == [.6, 1, .6]
             assert not errors, errors
             browser.close()
     finally:
