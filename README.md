@@ -6,6 +6,53 @@ https://github.com/rmalde/f1-laptime-rl/raw/main/media/showcase.mp4
 
 *Four cars on the same clock: Qwen after RL (76.1 s), Claude Opus 5.5 (85.9 s), a hand-written centerline baseline (87.2 s), and untrained Qwen (174.6 s). Download [`media/replay.html`](media/replay.html) for the interactive version, which includes every car's code.*
 
+## New: trained Qwen vs. Claude Opus in 3D
+
+The new replay compares two selected programs on the same circuit:
+
+| Policy | Lap time | Source |
+|---|---:|---|
+| [Trained Qwen3.6-35B-A3B](examples/qwen_trained_best_128.py) (35B total / 3B active) | **74.805 s** | Best of the 128-sample training batch at step 228 |
+| [Claude Opus 5.5](examples/claude_opus_best_128.py) | **78.031 s** | Best of a 128-attempt evaluation |
+
+These are selected-program results, not a matched evaluation of model distributions.
+Qwen was selected across training steps; Opus was also the fastest across two inspected
+128-attempt evaluations (256 attempts total). See [policy provenance](replay3d/provenance.json)
+for source IDs, exact times, and file hashes. The simulator and historical results below
+retain their original reward; this addition compares lap times.
+
+From the repository root, run:
+
+```bash
+python3 -m http.server 8768 --bind 127.0.0.1
+```
+
+Open **http://localhost:8768/replay3d/?comparison=champions&camera=f1**.
+No API key or JavaScript build is needed. Three.js is bundled locally; a WebGL-capable
+browser is required. The portable viewer uses system fonts and Trajectory's periwinkle
+and terracotta liveries, with a wordmark on the trained car's rear wing.
+
+The **F1 broadcast** camera cuts between low drone, front tracking, trackside, cockpit,
+and chase views. Closing gaps and lead changes trigger onboard shots, and a fixed camera
+covers the finish. Pause, scrub, change playback speed, or select a manual camera.
+These are independent, non-colliding ghost laps; the policies do not react to opponents.
+The painted start/finish line matches the simulator's timing reference point. The final
+unsaved fraction of a 20 Hz trace is visually interpolated to that line at the recorded
+finish time, without changing lap times or simulator physics.
+
+To reproduce both lap times with the existing simulator:
+
+```bash
+python f1.py sim examples/qwen_trained_best_128.py examples/claude_opus_best_128.py
+```
+
+To check the viewer after installing the repository requirements:
+
+```bash
+python -m playwright install chromium
+python test_replay3d.py
+```
+
 ## The task
 
 - **One fixed track.** The Trajectory Grand Prix Circuit is 5.35 km long, with a 1 km main straight, a hairpin, esses, a chicane and a fast sweeper.

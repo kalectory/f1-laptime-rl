@@ -1,0 +1,33 @@
+{
+  "captured_at": "2026-10-28T17:52:31.128278+00:00",
+  "policies": [
+    {
+      "policy": "examples/claude_opus_best_128.py",
+      "model": "anthropic/claude-opus-5.5",
+      "lap_time_s": 78.03146611307156,
+      "trajectory_id": "traj_06ae18c625827bcd800052e3ea316137",
+      "source": "evaluation",
+      "sha256": "419375d378e5330f0a27f50452b06b619d89e877195ae69f38f98fc2b56fc450",
+      "eval_run_id": "evr_06ae18be0a1174008000a06341ff0c04",
+      "samples_in_source_batch": 128,
+      "selection_note": "Winner of this 128-attempt evaluation; also fastest across two inspected 128-attempt evaluations (256 attempts total)."
+    },
+    {
+      "policy": "examples/qwen_trained_best_128.py",
+      "model": "Qwen/Qwen3.6-35B-A3B",
+      "lap_time_s": 74.80495930881983,
+      "trajectory_id": "traj_06ae229b83ad7f0f8000546dd8fdce66",
+      "source": "training",
+      "sha256": "9fef32a25d53a1488fb53144ee5c5578bab928364bd7674d09c07986a1848f46",
+      "training_xid": "1070367",
+      "segment_step": 28,
+      "overall_step": 228,
+      "samples_in_source_batch": 128,
+      "selection_note": "Winner of the step-228 training batch; selected as the best observed program across training steps, not a fresh held-out best-of-128 evaluation.",
+      "source_sha256": "9e5c781271fb89f726a2dc162c4498abea12d184da20f67104c892b8242ba7a2",
+      "formatting_note": "Trailing whitespace removed; policy logic unchanged."
+    }
+  ],
+  "comparison_note": "Selected individual programs on the same deterministic circuit, not a matched evaluation of model distributions.",
+  "trace_note": "Saved at 20 Hz; viewer interpolates the final unsaved interval to the finish plane at the recorded lap time."
+}
