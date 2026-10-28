@@ -306,7 +306,7 @@ function footprintClearance(a,b){
 function tick(now){if(!captureMode)requestAnimationFrame(tick);const dt=clamp((now-last)/1000,0,.1);last=now;if(playing)t=Math.min(tmax,t+dt*rate);if(t===tmax)playing=false;
  const states=data.runs.map(r=>sample(r,t));states.forEach((s,i)=>{const c=cars[i];c.position.set(s[1],0,-s[2]);c.rotation.y=s[3];c.userData.wheels.forEach(w=>{w.pivot.rotation.y=w.front?s[5]*.35:0;w.wheel.rotation.z=-s[9]/.37;});});
  // Fade both overlapping ghosts; ease back to solid across two metres.
- const opacity=.4+.6*THREE.MathUtils.smoothstep(footprintClearance(states[0],states[1]),0,2);
+ const opacity=.6+.4*THREE.MathUtils.smoothstep(footprintClearance(states[0],states[1]),0,2);
  if(mode==='f1'){
   const shot=broadcastShots.findLast(shot=>shot.start<=t)||broadcastShots[0];
   if(shot!==broadcastShot){broadcastShot=shot;selectDriver(shot.driver);snap=true;}

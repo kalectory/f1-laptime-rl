@@ -50,7 +50,7 @@ The **F1 broadcast** camera cuts between low drone, front tracking, trackside, c
 and chase views. Closing gaps and lead changes trigger onboard shots, and a fixed camera
 covers the finish. Pause, scrub, change playback speed, or select a manual camera.
 These are independent, non-colliding ghost laps; the policies do not react to opponents.
-Overlapping cars both remain visible at 40% opacity, with stable compositing order
+Overlapping cars both remain visible at 60% opacity, with stable compositing order
 and a smooth return to opaque as their bodies separate. Both timing traces remain
 unchanged. Normal broadcast shots last 7–8 seconds; battle cuts wait at least 5 seconds. The overlay keeps names, elapsed lap timers, speed, and playback controls.
 Each lap timer follows playback and freezes at that car's recorded finish time.

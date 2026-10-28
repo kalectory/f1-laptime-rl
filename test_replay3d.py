@@ -48,7 +48,7 @@ def main():
                 page.evaluate('t => replay3d.render(t)', time)
                 state = page.evaluate('replay3d.state')
                 assert all(state['visibleCars'])
-                assert all(alpha == .4 for alpha in state['carOpacity'])
+                assert all(alpha == .6 for alpha in state['carOpacity'])
                 assert state['visibleCars'][state['selected']]
                 assert page.locator('#hint, #gap').count() == 0
             page.evaluate('replay3d.render(17)')
@@ -107,7 +107,7 @@ def main():
             assert passes[0]["kind"] == "cockpit" and passes[0]["start"] > 10
             page.evaluate('replay3d.render(10)')
             assert all(page.evaluate('replay3d.state.visibleCars'))
-            assert page.evaluate('replay3d.state.carOpacity') == [.4, .4]
+            assert page.evaluate('replay3d.state.carOpacity') == [.6, .6]
             # Close side-by-side cars should both remain visible.
             for sample in synthetic['comparisons']['champions']['runs'][1]['trace']:
                 sample[2] = 3
