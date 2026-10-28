@@ -40,6 +40,9 @@ def main():
                     if response.status >= 400 else None)
             page.goto(url)
             page.wait_for_function("window.replay3d", timeout=60000)
+            scenery = page.evaluate('replay3d.state.scenery')
+            assert scenery['grandstands'] >= 10 and scenery['spectators'] >= 4000
+            assert scenery['trees'] >= 1000 and scenery['parkedCars'] > 50
             assert "Trained Qwen" in page.locator("#drivers").inner_text()
             shots = page.evaluate("replay3d.state.broadcastShots")
             assert {"drone", "front", "trackside", "cockpit", "chase", "finish"} <= {

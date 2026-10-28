@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildScenery } from './scenery.js';
 import { RoomEnvironment } from './vendor/RoomEnvironment.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { Sky } from './vendor/addons/objects/Sky.js';
@@ -56,6 +57,7 @@ scene.add(sun,sun.target);
 const supportsCinema=renderer.capabilities.isWebGL2&&renderer.extensions.has('EXT_color_buffer_float');
 let cinematic=supportsCinema&&innerWidth>=700,composer=null;
 function renderScene(){
+ renderer.info.autoReset=false;renderer.info.reset();
  if(!cinematic){renderer.render(scene,camera);return;}
  if(!composer){
   const target=new THREE.WebGLRenderTarget(innerWidth,innerHeight,{type:THREE.HalfFloatType,samples:4});
@@ -137,15 +139,7 @@ for(let i=0;i<10;i++){
  for(let j=0;j<4;j++){box(scene,5,3.7,.15,material('#394950'),x-11+j*7,2,-17.4);}
  const sign=new THREE.Mesh(new THREE.PlaneGeometry(25,1.5),new THREE.MeshBasicMaterial({map:label(i%2?'GRAND PRIX':'TRAJECTORY')}));sign.position.set(x,5.1,-17.3);scene.add(sign);
 }
-for(let i=0;i<7;i++){
- const x=100+i*58;box(scene,48,1,22,carbon,x,.5,36);
- for(let row=0;row<6;row++)box(scene,48,.65,2.5,material(row%2?'#889ba4':'#d9e0df'),x,1+row*.65,27+row*2.5);
- for(const dx of [-23,23])box(scene,.4,7,.4,metal,x+dx,3.5,40);
- const roof=box(scene,53,.25,23,white,x,7.5,36);roof.rotation.x=-.09;
-}
-for(let i=0;i<24;i++){const x=40+i*45;box(scene,.12,9,.12,metal,x,4.5,15);box(scene,2.6,.1,.5,white,x+1.1,9,15);}
-// Distant low hills keep the horizon soft without obscuring the recorded circuit.
-for(let i=0;i<25;i++){const m=new THREE.Mesh(new THREE.ConeGeometry(200+random()*250,80+random()*150,7),material('#8a9c88'));const a=i/25*Math.PI*2;m.position.set(650+Math.cos(a)*2500,15,Math.sin(a)*2500);scene.add(m);}
+const scenery=buildScenery(scene,{points,trackPoint,random,box,material,label});
 
 function car(color,number,branded=false){
  const g=new THREE.Group();const paint=new THREE.MeshPhysicalMaterial({color,metalness:.62,roughness:.2,clearcoat:1,clearcoatRoughness:.12,envMapIntensity:1.7});
@@ -263,7 +257,7 @@ function broadcastCamera(shot,states,forward,side){
   const turn=Math.atan2(Math.sin(after[3]-before[3]),Math.cos(after[3]-before[3]));
   const direction=new THREE.Vector3(Math.cos(anchor[3]),0,-Math.sin(anchor[3]));
   const outside=new THREE.Vector3(Math.sin(anchor[3]),0,Math.cos(anchor[3])).multiplyScalar(turn>=0?1:-1);
-  cameraGoal.set(anchor[1],0,-anchor[2]).addScaledVector(outside,20).addScaledVector(direction,8);cameraGoal.y=3.5;
+  cameraGoal.set(anchor[1],0,-anchor[2]).addScaledVector(outside,20).addScaledVector(direction,8);cameraGoal.y=7.5;
   if(shot.kind==='finish'){targetGoal.set(anchor[1],.6,-anchor[2]);fov=46;}
   else fov=clamp(2*Math.atan(11/cameraGoal.distanceTo(targetGoal))*180/Math.PI,12,50);
  }else{
@@ -303,7 +297,7 @@ $('play').onclick=()=>{if(t>=tmax)t=0;playing=!playing;};$('reset').onclick=()=>
 $('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>{});};
 window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='INPUT'&&e.target.tagName!=='BUTTON'){e.preventDefault();$('play').click();}});
 window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.fov=innerWidth<600?68:43;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);if(composer)composer.setSize(innerWidth,innerHeight);if(captureMode)tick(performance.now());});
-window.replay3d={seek(value){t=clamp(value,0,tmax);playing=false;snap=true;},setCamera:setMode,render(value){if(!captureMode)throw new Error("Use ?capture for frame export");t=clamp(value,0,tmax);playing=false;snap=true;tick(performance.now());},get state(){return {time:t,playing,mode,selected,broadcastShot:mode==='f1'?broadcastShot:null,broadcastShots,cameraPosition:camera.position.toArray(),cameraFov:camera.fov,laps:data.runs.map(r=>r.lap),positions:cars.map(c=>c.position.toArray()),calls:renderer.info.render.calls};}};
+window.replay3d={seek(value){t=clamp(value,0,tmax);playing=false;snap=true;},setCamera:setMode,render(value){if(!captureMode)throw new Error("Use ?capture for frame export");t=clamp(value,0,tmax);playing=false;snap=true;tick(performance.now());},get state(){return {time:t,playing,mode,selected,broadcastShot:mode==='f1'?broadcastShot:null,broadcastShots,cameraPosition:camera.position.toArray(),cameraFov:camera.fov,laps:data.runs.map(r=>r.lap),positions:cars.map(c=>c.position.toArray()),scenery,calls:renderer.info.render.calls};}};
 if(data.comparisons?.[comparison])setMode(comparison==='champions'?'chase':'duel');
 if(new URLSearchParams(location.search).get('camera')==='f1')setMode('f1');
 $('loading').remove();requestAnimationFrame(tick);

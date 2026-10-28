@@ -38,6 +38,13 @@ The **Cinema** toggle switches the extra post-processing off for faster playback
 it starts off on small screens or devices without the required HDR render-target support.
 All add-ons are bundled from the same Three.js r160 release under its MIT license.
 
+The venue includes 13 covered grandstands with more than 5,000 spectators, catch
+fencing, a paddock with team awnings and transporters, a hospitality tower,
+trackside screens, a pedestrian bridge, parking, and wooded surroundings.
+Crowds, trees, parked cars, and fence hardware use instanced geometry to limit draw
+calls. All scenery is deterministic and procedural; no external models or textures
+are downloaded. Trackside broadcast cameras sit above the catch fencing.
+
 The **F1 broadcast** camera cuts between low drone, front tracking, trackside, cockpit,
 and chase views. Closing gaps and lead changes trigger onboard shots, and a fixed camera
 covers the finish. Pause, scrub, change playback speed, or select a manual camera.
