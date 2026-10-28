@@ -138,11 +138,12 @@ for(let i=0;i<5;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.11,10,8),n
 // Pit buildings and grandstands give the long straight recognizable scale.
 const glass=new THREE.MeshPhysicalMaterial({color:'#7092a4',metalness:.5,roughness:.12,clearcoat:1});
 for(let i=0;i<10;i++){
- const x=55+i*35;box(scene,32,5,13,white,x,2.5,-24);box(scene,31,2,12,glass,x,6,-24);box(scene,34,.35,15,carbon,x,7.2,-24);
- for(let j=0;j<4;j++){box(scene,5,3.7,.15,material('#394950'),x-11+j*7,2,-17.4);}
- const sign=new THREE.Mesh(new THREE.PlaneGeometry(25,1.5),new THREE.MeshBasicMaterial({map:label(i%2?'GRAND PRIX':'TRAJECTORY')}));sign.position.set(x,5.1,-17.3);scene.add(sign);
+ const x=55+i*35;box(scene,32,5,13,white,x,2.5,-37);box(scene,31,2,12,glass,x,6,-37);box(scene,34,.35,15,carbon,x,7.2,-37);
+ for(let j=0;j<4;j++){box(scene,5,3.7,.15,material('#394950'),x-11+j*7,2,-30.4);}
+ const sign=new THREE.Mesh(new THREE.PlaneGeometry(25,1.5),new THREE.MeshBasicMaterial({map:label(i%2?'GRAND PRIX':'TRAJECTORY')}));sign.position.set(x,5.1,-30.3);scene.add(sign);
 }
-const scenery=buildScenery(scene,{points,trackPoint,random,box,material,label});
+const crowdTime={value:0};
+const scenery=buildScenery(scene,{points,trackPoint,random,box,material,label,crowdTime});
 
 function car(color,number,branded=false){
  const g=new THREE.Group();const paint=new THREE.MeshPhysicalMaterial({color,metalness:.62,roughness:.2,clearcoat:1,clearcoatRoughness:.12,envMapIntensity:1.7});
@@ -219,6 +220,7 @@ function setCarOpacity(car,opacity,index){
   entry.mesh.renderOrder=ghost?index+1:entry.renderOrder;
  }
 }
+for(const [x,color] of [[125,'#7584b9'],[300,'#c6795b']]){const spare=car(color,'',false);spare.position.set(x,0,-27);}
 const markers=data.runs.map(r=>{const m=new THREE.Mesh(new THREE.SphereGeometry(7,16,12),new THREE.MeshBasicMaterial({color:r.color}));scene.add(m);return m;});
 let selected=0,mode='chase',t=0,rate=1,playing=true,last=performance.now(),snap=true;
 const tmax=Math.max(...data.runs.map(r=>r.lap));$('scrub').max=tmax;
@@ -304,6 +306,7 @@ function footprintClearance(a,b){
  }));
 }
 function tick(now){if(!captureMode)requestAnimationFrame(tick);const dt=clamp((now-last)/1000,0,.1);last=now;if(playing)t=Math.min(tmax,t+dt*rate);if(t===tmax)playing=false;
+ crowdTime.value=t;
  const states=data.runs.map(r=>sample(r,t));states.forEach((s,i)=>{const c=cars[i];c.position.set(s[1],0,-s[2]);c.rotation.y=s[3];c.userData.wheels.forEach(w=>{w.pivot.rotation.y=w.front?s[5]*.35:0;w.wheel.rotation.z=-s[9]/.37;});});
  // Fade both overlapping ghosts; ease back to solid across two metres.
  const opacity=.6+.4*THREE.MathUtils.smoothstep(footprintClearance(states[0],states[1]),0,2);

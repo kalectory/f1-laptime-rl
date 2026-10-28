@@ -41,7 +41,9 @@ def main():
             page.goto(url)
             page.wait_for_function("window.replay3d", timeout=60000)
             scenery = page.evaluate('replay3d.state.scenery')
-            assert scenery['grandstands'] >= 40 and scenery['spectators'] >= 16000
+            assert scenery['grandstands'] >= 100 and scenery['spectators'] >= 50000
+            assert scenery['standingFans'] > 1000 and scenery['cheeringArms'] > 100000
+            assert scenery['pitCrew'] >= 80
             assert scenery['trees'] >= 1000 and scenery['parkedCars'] > 50
             assert "Trained Qwen" in page.locator("#drivers").inner_text()
             for time in [5, 5.03, 5.06, 8, 12]:

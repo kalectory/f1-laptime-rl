@@ -38,12 +38,17 @@ The **Cinema** toggle switches the extra post-processing off for faster playback
 it starts off on small screens or devices without the required HDR render-target support.
 All add-ons are bundled from the same Three.js r160 release under its MIT license.
 
-The venue includes 48 covered grandstands with more than 19,000 spectators, catch
-fencing, a paddock with team awnings and transporters, a hospitality tower,
+The venue includes 136 seating sections (42 covered grandstands and 94 open bleachers)
+with about 69,000 spectators, including 7,000 standing fans, catch
+fencing, a marked pit lane with service boxes, 100 crew members, spare cars, tire
+stacks and equipment carts, a paddock with team awnings and transporters, a hospitality tower,
 trackside screens, a pedestrian bridge, parking, and wooded surroundings backed by
 continuous, irregular hills.
 Grandstand structures, crowds, trees, parked cars, and fence hardware use instanced geometry to limit draw
-calls. All scenery is deterministic and procedural; no external models or textures
+calls. Crowd arms cheer with individual phases in an instanced vertex shader, driven by
+replay time so pausing and scrubbing remain deterministic. Pit crews and spare cars
+are decorative; the recorded drivers do not make pit stops.
+All scenery is deterministic and procedural; no external models or textures
 are downloaded. Trackside broadcast cameras sit above the catch fencing.
 
 The **F1 broadcast** camera cuts between low drone, front tracking, trackside, cockpit,

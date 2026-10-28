@@ -2,18 +2,18 @@ import * as THREE from 'three';
 
 // Deterministic, entirely local scenery. Crowds, trees, and fence hardware use
 // instancing rather than one draw call per spectator or plant.
-export function buildScenery(scene, {points, trackPoint, random, box, material, label}) {
+export function buildScenery(scene, {points, trackPoint, random, box, material, label, crowdTime}) {
  const concrete=material('#bac0ba',.94), steel=material('#35434b',.5,.6), cream=material('#f1eadb',.7);
  const blue=material('#7584b9',.6), peach=material('#c6795b',.6);
  const glass= new THREE.MeshPhysicalMaterial({color:'#597b8b',metalness:.5,roughness:.18,clearcoat:1});
- const dummy=new THREE.Object3D(), bodies=[], heads=[], seats=[], trunks=[], crowns=[], posts=[], rails=[];
- const occupied=[], standParts=new Map();
+ const dummy=new THREE.Object3D(), bodies=[], heads=[], arms=[], seats=[], trunks=[], crowns=[], posts=[], rails=[];
+ const occupied=[], standParts=new Map();let coveredStands=0;let standingFans=0,pitCrew=0;
  const crowdColors=['#c5cceb','#bb624a','#e1d9c4','#344d6c','#61908d','#5b6570','#9d8659'];
  const skinColors=['#cf9677','#9b6248','#edc9a4','#694936'];
  function instance(geometry, mat, items, shadow=false) {
   const mesh=new THREE.InstancedMesh(geometry,mat,items.length);
   items.forEach((item,i)=>{
-   dummy.position.set(...item.p);dummy.rotation.set(0,item.angle||0,0);dummy.scale.set(...item.s);dummy.updateMatrix();
+   dummy.position.set(...item.p);dummy.rotation.set(0,item.angle||0,item.tilt||0);dummy.scale.set(...item.s);dummy.updateMatrix();
    mesh.setMatrixAt(i,dummy.matrix);if(item.color)mesh.setColorAt(i,new THREE.Color(item.color));
   });
   mesh.castShadow=shadow;mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);return mesh;
@@ -24,13 +24,19 @@ export function buildScenery(scene, {points, trackPoint, random, box, material, 
  function clear(x,z,radius) {
   return trackDistance(x,z)>radius+16&&!occupied.some(o=>Math.hypot(x-o.x,z-o.z)<radius+o.radius);
  }
- function grandstand(index,side=1) {
-  const anchor=trackPoint(index,side*50),ahead=trackPoint(index+1,side*50);
-  if(!clear(anchor[0],anchor[2],29))return;
+ function grandstand(index,side=1,offset=42,covered=true) {
+  const anchor=trackPoint(index,side*offset),ahead=trackPoint(index+1,side*offset);
+  if(occupied.some(o=>Math.hypot(anchor[0]-o.x,anchor[2]-o.z)<62))return;
   const g=new THREE.Group();g.position.set(...anchor);
   // Local +z faces away from the circuit; rows rise towards the rear.
   g.rotation.y=-Math.atan2(ahead[2]-anchor[2],ahead[0]-anchor[0])+(side>0?Math.PI:0);
-  scene.add(g);
+  // Test the stand footprint, preserving runoff and the paddock service area.
+  for(const x of [-29,0,29])for(const z of [-14,0,14]){
+   const p=g.localToWorld(new THREE.Vector3(x,0,z));
+   if(trackDistance(p.x,p.z)<16||(p.x>-30&&p.x<470&&p.z>-150&&p.z<-10))return;
+  }
+  if([[570,43],[1040,215],[670,500]].some(([x,z])=>Math.hypot(anchor[0]-x,anchor[2]-z)<40))return;
+  scene.add(g);if(covered)coveredStands++;
   function part(w,h,d,mat,x,y,z) {
    const items=standParts.get(mat)||[];standParts.set(mat,items);
    items.push({p:g.localToWorld(new THREE.Vector3(x,y,z)).toArray(),s:[w,h,d],angle:g.rotation.y});
@@ -45,12 +51,15 @@ export function buildScenery(scene, {points, trackPoint, random, box, material, 
     const x=-25.4+col*.79;
     const at=(dx,dy,dz)=>g.localToWorld(new THREE.Vector3(x+dx,y+dy,z+dz)).toArray();
     seats.push({p:at(0,.12,0),s:[.56,.2,.55],angle:g.rotation.y,color:row%2?'#8796c4':'#d0d4df'});
-    if(random()<.16)continue;
+    if(random()<.06)continue;
     const height=.55+random()*.13;
     bodies.push({p:at((random()-.5)*.09,.25+height/2,0),s:[.4,height,.3],angle:g.rotation.y,color:crowdColors[Math.floor(random()*crowdColors.length)]});
-    heads.push({p:at(0,.35+height,0),s:[.15,.18,.15],color:skinColors[Math.floor(random()*skinColors.length)]});
+    const skin=skinColors[Math.floor(random()*skinColors.length)],phase=random()*Math.PI*2;
+    heads.push({p:at(0,.35+height,0),s:[.15,.18,.15],color:skin});
+    for(const side of [-1,1])arms.push({p:at(side*.22,.2+height,0),s:[1,1,1],angle:g.rotation.y,tilt:side*(.4+random()*.6),color:skin,phase:phase+side*.25});
    }
   }
+  if(covered){
   for(const x of [-26,-13,0,13,26]){
    part(.23,10.6,.23,steel,x,5.3,10);
    const beam=box(g,.18,.25,24,steel,x,10.4,0);beam.rotation.x=-.06;
@@ -59,19 +68,55 @@ export function buildScenery(scene, {points, trackPoint, random, box, material, 
   part(56,.9,.15,blue,0,10.1,-12.1);
   const sign=new THREE.Mesh(new THREE.PlaneGeometry(31,.72),new THREE.MeshBasicMaterial({map:label('TRAJECTORY GRAND PRIX')}));
   sign.position.set(0,10.12,-12.2);sign.rotation.y=Math.PI;g.add(sign);
+  }
   for(const x of [-26,26]){
    part(.13,1.2,20,steel,x,7.15,0);
    for(let row=0;row<8;row++)part(.09,1.05,.09,steel,x,1.1+row*.78,-9+row*2.1);
   }
  }
- // Continuous spectator sections along the straights, with gaps for access.
- for(let i=50;i<=450;i+=40)grandstand(i,-1);
- for(const [start,end,side] of [[620,900,1],[1020,1140,-1],[1220,1460,1],[1580,1740,1],[1860,2300,1],[2400,2600,1]])
-  for(let i=start;i<=end;i+=40)grandstand(i,side);
+ // Closer, denser front rows, plus a second bank at the outer straights.
+ for(let i=30;i<=470;i+=32)grandstand(i,-1,42,i%64===30);
+ for(let i=510;i<2640;i+=32)for(const side of [-1,1])grandstand(i,side,42,i%96===30);
+ for(const [start,end] of [[1220,1460],[1580,1740],[1860,2300]])
+  for(let i=start;i<=end;i+=40)grandstand(i,1,105,false);
+ // Packed general-admission strips behind the catch fencing and seating banks.
+ const legs=[];
+ for(let i=0;i<points.length;i+=2)for(const side of [-1,1])for(const offset of [23,24.4,25.8,78,79.4,80.8]){
+  const p=trackPoint(i,side*(offset+random()*.5));
+  if(!clear(p[0],p[2],3)||(p[0]>-40&&p[0]<800&&p[2]>-160&&p[2]<-10)||random()<.08)continue;
+  const ahead=trackPoint(i+1,side*offset),angle=-Math.atan2(ahead[2]-p[2],ahead[0]-p[0])+(side>0?Math.PI:0);
+  const skin=skinColors[Math.floor(random()*skinColors.length)],phase=random()*Math.PI*2;
+  const at=(x,y)=>[p[0]+x*Math.cos(angle),y,p[2]-x*Math.sin(angle)];
+  bodies.push({p:at(0,1.15),s:[.43,.65,.32],angle,color:crowdColors[Math.floor(random()*crowdColors.length)]});
+  heads.push({p:at(0,1.66),s:[.15,.18,.15],color:skin});
+  for(const side of [-1,1]){
+   legs.push({p:at(side*.12,.44),s:[.17,.85,.2],angle});
+   arms.push({p:at(side*.25,1.42),s:[1,1,1],angle,tilt:side*.6,color:skin,phase});
+  }
+  standingFans++;
+ }
+ instance(new THREE.BoxGeometry(1,1,1),material('#34404d',.96),legs);
  for(const [mat,items] of standParts)instance(new THREE.BoxGeometry(1,1,1),mat,items,true);
  instance(new THREE.BoxGeometry(1,1,1),material('#ffffff',.9),seats);
  instance(new THREE.BoxGeometry(1,1,1),material('#ffffff',.93),bodies);
- instance(new THREE.IcosahedronGeometry(1,1),material('#ffffff',.95),heads);
+ instance(new THREE.IcosahedronGeometry(1,0),material('#ffffff',.95),heads);
+ // Animate instanced arms on the GPU. Individual phases avoid synchronized waves;
+ // replay time makes pausing and scrubbing deterministic, with no per-fan CPU work.
+ const armGeometry=new THREE.BoxGeometry(.13,.65,.13);armGeometry.translate(0,.325,0);
+ armGeometry.setAttribute('cheerPhase',new THREE.InstancedBufferAttribute(new Float32Array(arms.map(a=>a.phase)),1));
+ const armMaterial=material('#ffffff',.95);
+ armMaterial.onBeforeCompile=shader=>{
+  shader.uniforms.crowdTime=crowdTime;
+  shader.vertexShader='uniform float crowdTime;\nattribute float cheerPhase;\n'+shader.vertexShader;
+  shader.vertexShader=shader.vertexShader.replace('#include <beginnormal_vertex>',`#include <beginnormal_vertex>
+   float cheerAngle=.48*sin(crowdTime*3.2+cheerPhase)+.12*sin(crowdTime*5.1+cheerPhase*2.);
+   mat2 cheerRotation=mat2(cos(cheerAngle),sin(cheerAngle),-sin(cheerAngle),cos(cheerAngle));
+   objectNormal.xy=cheerRotation*objectNormal.xy;`);
+  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+   transformed.xy=cheerRotation*transformed.xy;`);
+ };
+ const cheering=instance(armGeometry,armMaterial,arms);cheering.boundingSphere.radius+=1;
+
 
  // Diamond-mesh catch fencing, with shared geometry for the entire circuit.
  const canvas=document.createElement('canvas');canvas.width=canvas.height=128;
@@ -89,6 +134,38 @@ export function buildScenery(scene, {points, trackPoint, random, box, material, 
  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
  const fence=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:net,transparent:true,opacity:.32,side:THREE.DoubleSide,depthWrite:false}));scene.add(fence);
  instance(new THREE.BoxGeometry(1,1,1),steel,posts);instance(new THREE.BoxGeometry(1,1,1),steel,rails);
+
+ // Pit lane, painted service boxes, crews, tire stacks and equipment carts.
+ const lane=material('#565c63',.96),yellow=material('#ebce74',.85),rubber=material('#181c20',.94);
+ box(scene,440,.08,14,lane,230,.015,-19);
+ for(const z of [-12.2,-25.8])box(scene,440,.015,.14,cream,230,.065,z);
+ box(scene,440,.015,.12,yellow,230,.065,-20.5);
+ box(scene,370,.07,7,concrete,215,.015,-29);
+ const crewBodies=[],crewHeads=[],crewLimbs=[],tires=[];
+ for(let i=0;i<10;i++){
+  const x=55+i*35,color=i%2?'#c6795b':'#7584b9';
+  for(const dx of [-4.5,4.5])box(scene,.12,.015,5,cream,x+dx,.07,-27);
+  for(const z of [-24.5,-29.5])box(scene,9,.015,.12,cream,x,.07,z);
+  box(scene,2.1,1.15,.8,i%2?peach:blue,x+7,.58,-29);
+  box(scene,1.9,.12,.95,steel,x+7,1.2,-29);
+  box(scene,.8,1.8,.45,steel,x-8,.9,-30);
+  const monitor=box(scene,.65,.4,.06,glass,x-8,1.4,-29.74);
+  for(let stack=0;stack<2;stack++)for(let tire=0;tire<3;tire++)tires.push({p:[x-7+stack*.85,.16+tire*.29,-29],s:[1,1,1]});
+  for(let j=0;j<10;j++){
+   const dx=(j%5-2)*1.6,z=-27+(j<5?-1.7:1.7),kneel=j%3===0,y=kneel?.62:1.1;
+   crewBodies.push({p:[x+dx,y,z],s:[.48,.68,.35],color});
+   crewHeads.push({p:[x+dx,y+.52,z],s:[.23,.25,.23],color});
+   for(const side of [-1,1]){
+    crewLimbs.push({p:[x+dx+side*.13,y*.4,z],s:[.19,y*.8,.22],color});
+    crewLimbs.push({p:[x+dx+side*.29,y+.08,z+.12],s:[.15,.45,.18],color});
+   }
+   pitCrew++;
+  }
+ }
+ instance(new THREE.BoxGeometry(1,1,1),material('#ffffff',.86),crewBodies);
+ instance(new THREE.BoxGeometry(1,1,1),material('#ffffff',.88),crewLimbs);
+ instance(new THREE.IcosahedronGeometry(1,1),material('#ffffff',.4),crewHeads);
+ instance(new THREE.CylinderGeometry(.37,.37,.28,16),rubber,tires);
 
  // Paddock service lane, team awnings, transporters, and hospitality tower.
  box(scene,390,.08,18,material('#6c7273',.94),215,.01,-65);
@@ -166,5 +243,5 @@ export function buildScenery(scene, {points, trackPoint, random, box, material, 
  }
  terrain.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));terrain.computeVertexNormals();
  const hills=new THREE.Mesh(terrain,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1}));hills.receiveShadow=true;scene.add(hills);
- return {grandstands:occupied.length,spectators:bodies.length,trees:trunks.length,fencePosts:posts.length,parkedCars:parked.length};
+ return {grandstands:occupied.length,coveredStands,openBleachers:occupied.length-coveredStands,standingFans,pitCrew,cheeringArms:arms.length,spectators:bodies.length,trees:trunks.length,fencePosts:posts.length,parkedCars:parked.length};
 }
