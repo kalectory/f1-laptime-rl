@@ -64,6 +64,7 @@ def main():
                 assert state["broadcastShot"] == shot
                 assert all(math.isfinite(v) for v in state["cameraPosition"])
             page.evaluate("replay3d.render(12)")
+            assert page.locator("#drivers .lap").all_text_contents() == ["12.000", "12.000"]
             before = page.evaluate("replay3d.state")
             page.evaluate("replay3d.render(60); replay3d.render(12)")
             assert before == page.evaluate("replay3d.state"), "Scrubbing changed camera"
@@ -77,11 +78,14 @@ def main():
             page.locator('[data-camera="f1"]').click()
             page.evaluate("replay3d.render(0)")
             assert all(abs(pos[0]) < 1e-8 for pos in page.evaluate("replay3d.state.positions"))
-            for i, lap in enumerate(page.evaluate("replay3d.state.laps")):
+            assert page.locator("#drivers .lap").all_text_contents() == ["0.000", "0.000"]
+            laps = page.evaluate("replay3d.state.laps")
+            for i, lap in enumerate(laps):
                 page.evaluate("t => replay3d.render(t)", lap - .001)
                 assert page.evaluate("replay3d.state.positions")[i][0] < 0
                 page.evaluate("t => replay3d.render(t)", lap)
                 assert abs(page.evaluate("replay3d.state.positions")[i][0]) < 1e-8
+                assert page.locator("#drivers .lap").all_text_contents() == [f"{min(lap, end):.3f}" for end in laps]
             page.set_viewport_size({"width": 390, "height": 844})
             page.evaluate("replay3d.render(12)")
             assert page.locator('[data-camera="f1"]').is_visible()

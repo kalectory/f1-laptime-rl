@@ -52,7 +52,8 @@ covers the finish. Pause, scrub, change playback speed, or select a manual camer
 These are independent, non-colliding ghost laps; the policies do not react to opponents.
 When the car bodies overlap, only the selected car is drawn to avoid flickering
 intersecting body panels. Both timing traces remain unchanged; separated cars are
-shown together. The overlay keeps names, lap times, speed, and playback controls.
+shown together. The overlay keeps names, elapsed lap timers, speed, and playback controls.
+Each lap timer follows playback and freezes at that car's recorded finish time.
 The painted start/finish line matches the simulator's timing reference point. The final
 unsaved fraction of a 20 Hz trace is visually interpolated to that line at the recorded
 finish time, without changing lap times or simulator physics.

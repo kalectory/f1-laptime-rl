@@ -195,7 +195,8 @@ const cars=data.runs.map((r,i)=>car(r.color,i?'02':'01',r.wordmark));
 const markers=data.runs.map(r=>{const m=new THREE.Mesh(new THREE.SphereGeometry(7,16,12),new THREE.MeshBasicMaterial({color:r.color}));scene.add(m);return m;});
 let selected=0,mode='chase',t=0,rate=1,playing=true,last=performance.now(),snap=true;
 const tmax=Math.max(...data.runs.map(r=>r.lap));$('scrub').max=tmax;
-$('drivers').innerHTML=data.runs.map((r,i)=>`<button class="driver ${i?'':'active'}" data-driver="${i}"><span class="rank">0${i+1}</span><span><strong><i class="dot" style="background:${r.color}"></i>${r.short==='QWEN'?'Trained Qwen':r.short==='OPUS'?'Claude Opus':r.short}</strong></span><span class="lap">${r.lap.toFixed(3)}</span></button>`).join('');
+$('drivers').innerHTML=data.runs.map((r,i)=>`<button class="driver ${i?'':'active'}" data-driver="${i}"><span class="rank">0${i+1}</span><span><strong><i class="dot" style="background:${r.color}"></i>${r.short==='QWEN'?'Trained Qwen':r.short==='OPUS'?'Claude Opus':r.short}</strong></span><span class="lap">0.000</span></button>`).join('');
+const lapTimers=document.querySelectorAll('#drivers .lap');
 function sample(run,time){const a=run.trace;let lo=0,hi=a.length-1;while(lo<hi){const m=Math.ceil((lo+hi)/2);if(a[m][0]<=time)lo=m;else hi=m-1;}const x=a[lo],y=a[Math.min(lo+1,a.length-1)],f=clamp((time-x[0])/(y[0]-x[0]||1),0,1);const v=x.map((n,i)=>n+(y[i]-n)*f);v[3]=x[3]+Math.atan2(Math.sin(y[3]-x[3]),Math.cos(y[3]-x[3]))*f;return v;}
 const map=$('minimap'),ctx=map.getContext('2d');const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
 function mp(x,y){const scale=Math.min(404/(maxx-minx),184/(maxy-miny));return [18+(x-minx)*scale,18+(maxy-y)*scale];}
@@ -298,6 +299,7 @@ function tick(now){if(!captureMode)requestAnimationFrame(tick);const dt=clamp((n
  cars.forEach((car,i)=>{car.visible=!overlap||i===selected;});markers.forEach((m,i)=>{m.visible=mode==='aerial'&&(!overlap||i===selected);m.position.copy(cars[i].position);m.position.y=10;});
  $('speed').textContent=Math.round(t>=data.runs[selected].lap?0:s[4]*3.6);$('throttle').style.height=(t>=data.runs[selected].lap?0:s[6]*100)+'%';$('brake').style.height=(t>=data.runs[selected].lap?0:s[7]*100)+'%';
  $('clock').textContent=`${Math.floor(t/60)}:${(t%60).toFixed(2).padStart(5,'0')}`;$('scrub').value=t;$('play').textContent=playing?'Ⅱ':'▶';$('play').setAttribute('aria-label',playing?'Pause':'Play');
+ lapTimers.forEach((el,i)=>{el.textContent=Math.min(t,data.runs[i].lap).toFixed(3);});
  $('finish').style.display=t>=winner.lap?'block':'none';drawMap(states);renderScene();
 }
 function setMode(next){mode=next;broadcastShot=null;camera.fov=innerWidth<600?68:43;camera.near=mode==='aerial'?100:.08;camera.updateProjectionMatrix();scene.fog.near=mode==='aerial'?2300:500;scene.fog.far=mode==='aerial'?6000:2600;controls.enabled=mode==='orbit';controls.target.copy(cars[selected].position);controls.target.y=.6;snap=true;document.querySelectorAll('[data-camera]').forEach(b=>b.classList.toggle('active',b.dataset.camera===mode));}
