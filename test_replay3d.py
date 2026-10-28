@@ -41,9 +41,17 @@ def main():
             page.goto(url)
             page.wait_for_function("window.replay3d", timeout=60000)
             scenery = page.evaluate('replay3d.state.scenery')
-            assert scenery['grandstands'] >= 10 and scenery['spectators'] >= 4000
+            assert scenery['grandstands'] >= 40 and scenery['spectators'] >= 16000
             assert scenery['trees'] >= 1000 and scenery['parkedCars'] > 50
             assert "Trained Qwen" in page.locator("#drivers").inner_text()
+            for time in [5, 5.03, 5.06, 8, 12]:
+                page.evaluate('t => replay3d.render(t)', time)
+                state = page.evaluate('replay3d.state')
+                assert sum(state['visibleCars']) == 1
+                assert state['visibleCars'][state['selected']]
+                assert page.locator('#hint, #gap').count() == 0
+            page.evaluate('replay3d.render(17)')
+            assert all(page.evaluate('replay3d.state.visibleCars'))
             shots = page.evaluate("replay3d.state.broadcastShots")
             assert {"drone", "front", "trackside", "cockpit", "chase", "finish"} <= {
                 shot["kind"] for shot in shots
@@ -91,6 +99,15 @@ def main():
             passes = page.evaluate('replay3d.state.broadcastShots.filter(s => s.reason === "Lead change")')
             assert len(passes) == 1 and passes[0]["driver"] == 0
             assert passes[0]["kind"] == "cockpit" and passes[0]["start"] > 10
+            page.evaluate('replay3d.render(10)')
+            assert sum(page.evaluate('replay3d.state.visibleCars')) == 1
+            # Close side-by-side cars should both remain visible.
+            for sample in synthetic['comparisons']['champions']['runs'][1]['trace']:
+                sample[2] = 3
+            page.reload()
+            page.wait_for_function('window.replay3d', timeout=60000)
+            page.evaluate('replay3d.render(10)')
+            assert all(page.evaluate('replay3d.state.visibleCars'))
             assert not errors, errors
             browser.close()
     finally:

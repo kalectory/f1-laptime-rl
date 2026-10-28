@@ -52,6 +52,10 @@ Object.assign(sun.shadow.camera,{left:-35,right:35,top:35,bottom:-35,near:.1,far
 sun.shadow.camera.updateProjectionMatrix();
 sun.shadow.bias=-.00015;sun.shadow.normalBias=.025;
 scene.add(sun,sun.target);
+const shadowTexel=70/sun.shadow.mapSize.x;
+const shadowRight=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),sunDirection).normalize();
+const shadowUp=new THREE.Vector3().crossVectors(sunDirection,shadowRight).normalize();
+const shadowAnchor=new THREE.Vector3();
 
 // Keep HDR highlights through bloom; tone mapping and sRGB conversion happen last.
 const supportsCinema=renderer.capabilities.isWebGL2&&renderer.extensions.has('EXT_color_buffer_float');
@@ -99,11 +103,10 @@ if(data.comparisons?.[comparison]){
 }
 const wingWordmark=data.wordmark_svg?await new THREE.TextureLoader().loadAsync('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(data.wordmark_svg.replace('<svg ', '<svg width="1187" height="256" '))):null;
 if(wingWordmark){wingWordmark.colorSpace=THREE.SRGBColorSpace;wingWordmark.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());}
-const winner=data.runs.reduce((a,b)=>a.lap<b.lap?a:b),lapDifference=Math.abs(data.runs[1].lap-data.runs[0].lap);
-document.querySelector('.badge').innerHTML='<i></i> '+data.runs.map(r=>r.short).join(' × ')+' · 5.350 KM';
+const winner=data.runs.reduce((a,b)=>a.lap<b.lap?a:b);
 $('scene').setAttribute('aria-label','Three dimensional replay of '+data.runs.map(r=>r.label).join(' versus '));
-$('selected').textContent=data.runs[0].short+' / LIVE TELEMETRY';
-$('finish').innerHTML=`<div class="eyebrow">${winner.short} takes the flag</div><strong>${winner.lap.toFixed(3)} <span style="font-size:12px">SECONDS</span></strong><div style="font-size:12px;margin-top:7px">${lapDifference.toFixed(3)}s faster lap</div>`;
+$('selected').textContent=data.runs[0].short;
+$('finish').innerHTML=`<strong>${winner.short} wins · ${winner.lap.toFixed(3)} s</strong>`;
 const points=data.track.centerline;
 const start=data.track.start,finishNormal=[Math.cos(start.heading),Math.sin(start.heading)];
 // Saved traces stop at the last 50 ms control sample. Complete only that final
@@ -192,9 +195,8 @@ const cars=data.runs.map((r,i)=>car(r.color,i?'02':'01',r.wordmark));
 const markers=data.runs.map(r=>{const m=new THREE.Mesh(new THREE.SphereGeometry(7,16,12),new THREE.MeshBasicMaterial({color:r.color}));scene.add(m);return m;});
 let selected=0,mode='chase',t=0,rate=1,playing=true,last=performance.now(),snap=true;
 const tmax=Math.max(...data.runs.map(r=>r.lap));$('scrub').max=tmax;
-$('drivers').innerHTML=data.runs.map((r,i)=>`<button class="driver ${i?'':'active'}" data-driver="${i}"><span class="rank">0${i+1}</span><span><strong><i class="dot" style="background:${r.color}"></i>${r.short}</strong><small>${r.description||(i?'Original repository program':'Trained Qwen')}</small></span><span class="lap">${r.lap.toFixed(3)}<small>BEST LAP / S</small></span></button>`).join('');
+$('drivers').innerHTML=data.runs.map((r,i)=>`<button class="driver ${i?'':'active'}" data-driver="${i}"><span class="rank">0${i+1}</span><span><strong><i class="dot" style="background:${r.color}"></i>${r.short==='QWEN'?'Trained Qwen':r.short==='OPUS'?'Claude Opus':r.short}</strong></span><span class="lap">${r.lap.toFixed(3)}</span></button>`).join('');
 function sample(run,time){const a=run.trace;let lo=0,hi=a.length-1;while(lo<hi){const m=Math.ceil((lo+hi)/2);if(a[m][0]<=time)lo=m;else hi=m-1;}const x=a[lo],y=a[Math.min(lo+1,a.length-1)],f=clamp((time-x[0])/(y[0]-x[0]||1),0,1);const v=x.map((n,i)=>n+(y[i]-n)*f);v[3]=x[3]+Math.atan2(Math.sin(y[3]-x[3]),Math.cos(y[3]-x[3]))*f;return v;}
-function timeAtProgress(run,s){const a=run.trace;let i=0;while(i<a.length-1&&a[i+1][9]<s)i++;const b=a[Math.min(i+1,a.length-1)];return a[i][0]+clamp((s-a[i][9])/(b[9]-a[i][9]||1),0,1)*(b[0]-a[i][0]);}
 const map=$('minimap'),ctx=map.getContext('2d');const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
 function mp(x,y){const scale=Math.min(404/(maxx-minx),184/(maxy-miny));return [18+(x-minx)*scale,18+(maxy-y)*scale];}
 function drawMap(states){ctx.clearRect(0,0,440,220);ctx.strokeStyle='#697d88';ctx.lineWidth=4;ctx.beginPath();points.forEach((p,i)=>{const q=mp(...p);i?ctx.lineTo(...q):ctx.moveTo(...q);});ctx.closePath();ctx.stroke();states.forEach((s,i)=>{const p=mp(s[1],s[2]);ctx.beginPath();ctx.arc(...p,i===selected?7:5,0,Math.PI*2);ctx.fillStyle=data.runs[i].color;ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();});}
@@ -231,9 +233,8 @@ function makeBroadcastShots(runs){
 }
 const broadcastShots=makeBroadcastShots(data.runs);
 let broadcastShot=null;
-const shotNames={drone:'LOW DRONE',front:'FRONT TRACKING',trackside:'TRACKSIDE',cockpit:'ONBOARD',chase:'REAR CHASE',finish:'FINISH LINE'};
 function selectDriver(driver){
- selected=driver;$('selected').textContent=data.runs[driver].short+' / LIVE TELEMETRY';
+ selected=driver;$('selected').textContent=data.runs[driver].short;
  document.querySelectorAll('[data-driver]').forEach(el=>el.classList.toggle('active',Number(el.dataset.driver)===driver));
 }
 const cameraGoal=new THREE.Vector3(),targetGoal=new THREE.Vector3(),look=new THREE.Vector3();
@@ -242,10 +243,10 @@ function broadcastCamera(shot,states,forward,side){
  targetGoal.copy(car.position);targetGoal.y=.6;
  let fov=43;
  if(shot.kind==='drone'){
-  const separation=cars[0].position.distanceTo(cars[1].position),together=separation<45;
-  if(together)targetGoal.copy(cars[0].position).add(cars[1].position).multiplyScalar(.5);
+  const separation=cars[0].position.distanceTo(cars[1].position),pairWeight=1-THREE.MathUtils.smoothstep(separation,25,60);
+  targetGoal.lerp(cars[1-shot.driver].position,pairWeight*.5);
   cameraGoal.copy(targetGoal).addScaledVector(forward,-22).addScaledVector(side,18);
-  cameraGoal.y=30+(together?separation*.45:0);fov=50;
+  cameraGoal.y=30+Math.min(separation,60)*pairWeight*.45;fov=50;
  }else if(shot.kind==='front'){
   cameraGoal.copy(car.position).addScaledVector(forward,16).addScaledVector(side,2.5);cameraGoal.y=2.5;fov=38;
  }else if(shot.kind==='cockpit'){
@@ -267,12 +268,21 @@ function broadcastCamera(shot,states,forward,side){
 }
 
 const captureMode=new URLSearchParams(location.search).has("capture");
+function footprintsOverlap(a,b){
+ const axes=[a[3],a[3]+Math.PI/2,b[3],b[3]+Math.PI/2];
+ return axes.every(angle=>{
+  const radius=s=>2.85*Math.abs(Math.cos(angle-s[3]))+1.2*Math.abs(Math.sin(angle-s[3]));
+  return Math.abs((a[1]-b[1])*Math.cos(angle)+(a[2]-b[2])*Math.sin(angle))<radius(a)+radius(b);
+ });
+}
 function tick(now){if(!captureMode)requestAnimationFrame(tick);const dt=clamp((now-last)/1000,0,.1);last=now;if(playing)t=Math.min(tmax,t+dt*rate);if(t===tmax)playing=false;
  const states=data.runs.map(r=>sample(r,t));states.forEach((s,i)=>{const c=cars[i];c.position.set(s[1],0,-s[2]);c.rotation.y=s[3];c.userData.wheels.forEach(w=>{w.pivot.rotation.y=w.front?s[5]*.35:0;w.wheel.rotation.z=-s[9]/.37;});});
+ // These are independent ghost laps. Coincident opaque body panels z-fight;
+ // keep the selected car visible until the two car-sized footprints separate.
+ const overlap=footprintsOverlap(states[0],states[1]);
  if(mode==='f1'){
   const shot=broadcastShots.findLast(shot=>shot.start<=t)||broadcastShots[0];
   if(shot!==broadcastShot){broadcastShot=shot;selectDriver(shot.driver);snap=true;}
-  $('hint').textContent=`F1 · ${shotNames[shot.kind]} · ${data.runs[shot.driver].short}${shot.reason==='Lead change'?' · LEAD CHANGE':shot.reason==='Closing battle'?' · CLOSING BATTLE':''} · Recorded ghost laps`;
  }
  const c=cars[selected],s=states[selected],forward=new THREE.Vector3(Math.cos(s[3]),0,-Math.sin(s[3])),side=new THREE.Vector3(Math.sin(s[3]),0,Math.cos(s[3]));
  if(mode==='f1'){broadcastCamera(broadcastShot,states,forward,side);}
@@ -281,15 +291,16 @@ function tick(now){if(!captureMode)requestAnimationFrame(tick);const dt=clamp((n
  else if(mode==='cockpit'){cameraGoal.copy(c.position).addScaledVector(forward,.65);cameraGoal.y=1.08;targetGoal.copy(c.position).addScaledVector(forward,35);targetGoal.y=1.05;}
  else if(mode==='aerial'){cameraGoal.set(650,1550,500);targetGoal.set(650,0,110);}
  if(mode!=='orbit'){const blend=snap||mode==='f1'?1:1-Math.exp(-dt*(mode==='cockpit'?70:7));camera.position.lerp(cameraGoal,blend);look.lerp(targetGoal,blend);camera.lookAt(look);}else controls.update();snap=false;
- sun.position.copy(c.position).add(sunOffset);sun.target.position.copy(c.position);sun.target.updateMatrixWorld();
- cars.forEach(car=>{car.visible=true;});markers.forEach((m,i)=>{m.visible=mode==='aerial';m.position.copy(cars[i].position);m.position.y=10;});
+ // Align the moving shadow camera to its texel grid to avoid crawling shadows.
+ shadowAnchor.copy(c.position);
+ for(const axis of [shadowRight,shadowUp]){const value=c.position.dot(axis);shadowAnchor.addScaledVector(axis,Math.round(value/shadowTexel)*shadowTexel-value);}
+ sun.position.copy(shadowAnchor).add(sunOffset);sun.target.position.copy(shadowAnchor);sun.target.updateMatrixWorld();
+ cars.forEach((car,i)=>{car.visible=!overlap||i===selected;});markers.forEach((m,i)=>{m.visible=mode==='aerial'&&(!overlap||i===selected);m.position.copy(cars[i].position);m.position.y=10;});
  $('speed').textContent=Math.round(t>=data.runs[selected].lap?0:s[4]*3.6);$('throttle').style.height=(t>=data.runs[selected].lap?0:s[6]*100)+'%';$('brake').style.height=(t>=data.runs[selected].lap?0:s[7]*100)+'%';
  $('clock').textContent=`${Math.floor(t/60)}:${(t%60).toFixed(2).padStart(5,'0')}`;$('scrub').value=t;$('play').textContent=playing?'Ⅱ':'▶';$('play').setAttribute('aria-label',playing?'Pause':'Play');
- const lead=states[0][9]-states[1][9],lag=states[0][9]>=states[1][9]?0:1,other=1-lag,delta=timeAtProgress(data.runs[other],states[other][9])-timeAtProgress(data.runs[lag],states[other][9]);
- $('gap').textContent=t>=tmax?`Final lap-time difference: ${lapDifference.toFixed(3)} seconds.`:`${data.runs[lag].short} leads · ${Math.abs(lead).toFixed(0)} m on circuit · ${Math.max(0,delta).toFixed(2)} s at matched progress`;
  $('finish').style.display=t>=winner.lap?'block':'none';drawMap(states);renderScene();
 }
-function setMode(next){mode=next;broadcastShot=null;camera.fov=innerWidth<600?68:43;camera.near=mode==='aerial'?100:.08;camera.updateProjectionMatrix();scene.fog.near=mode==='aerial'?2300:500;scene.fog.far=mode==='aerial'?6000:2600;controls.enabled=mode==='orbit';controls.target.copy(cars[selected].position);controls.target.y=.6;snap=true;document.querySelectorAll('[data-camera]').forEach(b=>b.classList.toggle('active',b.dataset.camera===mode));$('hint').textContent=mode==='orbit'?'Drag to orbit · scroll to zoom · right-drag to pan':'Recorded physics · shared clock · non-colliding ghost cars';}
+function setMode(next){mode=next;broadcastShot=null;camera.fov=innerWidth<600?68:43;camera.near=mode==='aerial'?100:.08;camera.updateProjectionMatrix();scene.fog.near=mode==='aerial'?2300:500;scene.fog.far=mode==='aerial'?6000:2600;controls.enabled=mode==='orbit';controls.target.copy(cars[selected].position);controls.target.y=.6;snap=true;document.querySelectorAll('[data-camera]').forEach(b=>b.classList.toggle('active',b.dataset.camera===mode));}
 document.querySelectorAll('[data-camera]').forEach(b=>b.onclick=()=>setMode(b.dataset.camera));
 document.querySelectorAll('[data-driver]').forEach(b=>b.onclick=()=>{if(mode==='f1')setMode('chase');selectDriver(Number(b.dataset.driver));snap=true;controls.target.copy(cars[selected].position);});
 document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{rate=Number(b.dataset.rate);document.querySelectorAll('[data-rate]').forEach(el=>el.classList.toggle('active',el===b));});
@@ -297,7 +308,7 @@ $('play').onclick=()=>{if(t>=tmax)t=0;playing=!playing;};$('reset').onclick=()=>
 $('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>{});};
 window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='INPUT'&&e.target.tagName!=='BUTTON'){e.preventDefault();$('play').click();}});
 window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.fov=innerWidth<600?68:43;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);if(composer)composer.setSize(innerWidth,innerHeight);if(captureMode)tick(performance.now());});
-window.replay3d={seek(value){t=clamp(value,0,tmax);playing=false;snap=true;},setCamera:setMode,render(value){if(!captureMode)throw new Error("Use ?capture for frame export");t=clamp(value,0,tmax);playing=false;snap=true;tick(performance.now());},get state(){return {time:t,playing,mode,selected,broadcastShot:mode==='f1'?broadcastShot:null,broadcastShots,cameraPosition:camera.position.toArray(),cameraFov:camera.fov,laps:data.runs.map(r=>r.lap),positions:cars.map(c=>c.position.toArray()),scenery,calls:renderer.info.render.calls};}};
+window.replay3d={seek(value){t=clamp(value,0,tmax);playing=false;snap=true;},setCamera:setMode,render(value){if(!captureMode)throw new Error("Use ?capture for frame export");t=clamp(value,0,tmax);playing=false;snap=true;tick(performance.now());},get state(){return {time:t,playing,mode,selected,broadcastShot:mode==='f1'?broadcastShot:null,broadcastShots,cameraPosition:camera.position.toArray(),cameraFov:camera.fov,laps:data.runs.map(r=>r.lap),positions:cars.map(c=>c.position.toArray()),visibleCars:cars.map(c=>c.visible),scenery,calls:renderer.info.render.calls};}};
 if(data.comparisons?.[comparison])setMode(comparison==='champions'?'chase':'duel');
 if(new URLSearchParams(location.search).get('camera')==='f1')setMode('f1');
 $('loading').remove();requestAnimationFrame(tick);
