@@ -32,6 +32,12 @@ No API key or JavaScript build is needed. Three.js is bundled locally; a WebGL-c
 browser is required. The portable viewer uses system fonts and Trajectory's periwinkle
 and terracotta liveries, with a wordmark on the trained car's rear wing.
 
+Three.js's atmospheric `Sky`, `EffectComposer`, `UnrealBloomPass`, and `OutputPass`
+add warm sunlight, long shadows, HDR highlight bloom, and filmic tone mapping.
+The **Cinema** toggle switches the extra post-processing off for faster playback;
+it starts off on small screens or devices without the required HDR render-target support.
+All add-ons are bundled from the same Three.js r160 release under its MIT license.
+
 The **F1 broadcast** camera cuts between low drone, front tracking, trackside, cockpit,
 and chase views. Closing gaps and lead changes trigger onboard shots, and a fixed camera
 covers the finish. Pause, scrub, change playback speed, or select a manual camera.

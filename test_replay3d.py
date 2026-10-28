@@ -34,6 +34,8 @@ def main():
             page = browser.new_page(viewport={"width": 1440, "height": 900})
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
+            page.on("console", lambda message: errors.append(message.text)
+                    if message.type == "error" else None)
             page.on("response", lambda response: errors.append(response.url)
                     if response.status >= 400 else None)
             page.goto(url)
@@ -54,6 +56,11 @@ def main():
             before = page.evaluate("replay3d.state")
             page.evaluate("replay3d.render(60); replay3d.render(12)")
             assert before == page.evaluate("replay3d.state"), "Scrubbing changed camera"
+            assert page.locator('#cinematic').get_attribute('aria-pressed') == 'true'
+            page.locator('#cinematic').click()
+            assert page.locator('#cinematic').get_attribute('aria-pressed') == 'false'
+            assert before['positions'] == page.evaluate('replay3d.state.positions')
+            page.locator('#cinematic').click()
             page.locator('[data-driver="1"]').click()
             assert page.evaluate("replay3d.state.mode") == "chase"
             page.locator('[data-camera="f1"]').click()

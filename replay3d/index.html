@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trajectory Grand Prix · 3D replay</title>
+<link rel="icon" href="data:,">
 <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 <style>
 
@@ -17,5 +18,5 @@
 <div class="finish glass" id="finish"><div class="eyebrow">Qwen takes the flag</div><strong>75.441 <span style="font-size:12px;color:#a9bac6">SECONDS</span></strong><div style="font-size:11px;color:#bdcbd5;margin-top:7px">10.502s faster than the original Opus lap</div></div>
 <section class="telemetry"><div><div class="selected" id="selected">QWEN / LIVE TELEMETRY</div><div class="speed"><span id="speed">0</span><small>KM / H</small></div></div><div class="meters" title="Throttle / brake"><div class="meter"><i id="throttle"></i></div><div class="meter brake"><i id="brake"></i></div></div></section>
 <section class="map glass"><div class="eyebrow">Circuit position</div><canvas id="minimap" width="440" height="220"></canvas></section>
-<footer class="dock glass"><button class="play" id="play" aria-label="Pause">Ⅱ</button><button id="reset" aria-label="Restart" title="Restart">↺</button><div class="time"><span id="clock">0:00.00</span><small>RACE TIME</small></div><input class="scrub" id="scrub" type="range" min="0" max="85.943" step="0.01" value="0" aria-label="Replay time"><div class="rates" aria-label="Playback speed"><button class="active" data-rate="1">1×</button><button data-rate="2">2×</button><button data-rate="5">5×</button></div><span class="quality">3D REPLAY</span><button id="fullscreen" class="fullscreen" aria-label="Fullscreen">⛶</button></footer>
+<footer class="dock glass"><button class="play" id="play" aria-label="Pause">Ⅱ</button><button id="reset" aria-label="Restart" title="Restart">↺</button><div class="time"><span id="clock">0:00.00</span><small>RACE TIME</small></div><input class="scrub" id="scrub" type="range" min="0" max="85.943" step="0.01" value="0" aria-label="Replay time"><div class="rates" aria-label="Playback speed"><button class="active" data-rate="1">1×</button><button data-rate="2">2×</button><button data-rate="5">5×</button></div><button class="quality" id="cinematic" aria-pressed="true" title="Toggle cinematic highlights; switch off for faster playback">Cinema: on</button><button id="fullscreen" class="fullscreen" aria-label="Fullscreen">⛶</button></footer>
 <script type="module" src="./app.js"></script></body></html>
