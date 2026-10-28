@@ -14,7 +14,8 @@ const $ = id => document.getElementById(id);
 const clamp = THREE.MathUtils.clamp;
 let renderer;
 try {
-  renderer = new THREE.WebGLRenderer({canvas:$('scene'),antialias:true,alpha:false,powerPreference:'high-performance'});
+  // The near-ground cameras and distant hills need precision across a large depth range.
+  renderer = new THREE.WebGLRenderer({canvas:$('scene'),antialias:true,alpha:false,logarithmicDepthBuffer:true,powerPreference:'high-performance'});
 } catch (e) {
   $('loading').innerHTML='<h1>3D graphics unavailable</h1><p>This browser could not start WebGL.</p><a href="../media/replay.html">Open the 2D replay</a>';
   throw e;
