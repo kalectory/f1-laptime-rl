@@ -192,6 +192,33 @@ function car(color,number,branded=false){
  g.userData.wheels=wheels;scene.add(g);return g;
 }
 const cars=data.runs.map((r,i)=>car(r.color,i?'02':'01',r.wordmark));
+// Clone shared materials so fading a car cannot fade track furniture.
+cars.forEach((car,i)=>{
+ const materials=new Map();car.userData.opacity=1;car.userData.surfaces=[];
+ car.traverse(mesh=>{
+  if(!mesh.isMesh)return;
+  const original=mesh.material;
+  if(!materials.has(original))materials.set(original,original.clone());
+  mesh.material=materials.get(original);
+  car.userData.surfaces.push({mesh,castShadow:mesh.castShadow,renderOrder:mesh.renderOrder});
+ });
+ car.userData.materials=[...materials].map(([original,mat])=>({mat,opacity:original.opacity,transparent:original.transparent,depthWrite:original.depthWrite}));
+});
+function setCarOpacity(car,opacity,index){
+ if(car.userData.opacity===opacity)return;
+ car.userData.opacity=opacity;
+ const ghost=opacity<1;
+ for(const entry of car.userData.materials){
+  const {mat}=entry,transparent=ghost||entry.transparent;
+  if(mat.transparent!==transparent){mat.transparent=transparent;mat.needsUpdate=true;}
+  mat.opacity=entry.opacity*opacity;mat.depthWrite=ghost?false:entry.depthWrite;
+ }
+ for(const entry of car.userData.surfaces){
+  entry.mesh.castShadow=!ghost&&entry.castShadow;
+  // Stable compositing order prevents intersecting ghosts swapping draw order.
+  entry.mesh.renderOrder=ghost?index+1:entry.renderOrder;
+ }
+}
 const markers=data.runs.map(r=>{const m=new THREE.Mesh(new THREE.SphereGeometry(7,16,12),new THREE.MeshBasicMaterial({color:r.color}));scene.add(m);return m;});
 let selected=0,mode='chase',t=0,rate=1,playing=true,last=performance.now(),snap=true;
 const tmax=Math.max(...data.runs.map(r=>r.lap));$('scrub').max=tmax;
@@ -207,7 +234,7 @@ function makeBroadcastShots(runs){
  const winningDriver=runs[0].lap<=runs[1].lap?0:1;
  const cycle=['front','trackside','drone','cockpit','chase'];
  const shots=[{start:0,kind:'drone',driver:0,reason:'Opening shot'}];
- let nextCut=5,sequence=0,stableLeader=null,lastBattle=-20,pendingPass=null;
+ let nextCut=7,sequence=0,stableLeader=null,lastBattle=-20,pendingPass=null;
  const cut=(time,kind,driver,reason,duration)=>{shots.push({start:time,kind,driver,reason});nextCut=time+duration;};
  for(let time=.25;time<end;time+=.25){
   const a=sample(runs[0],time),b=sample(runs[1],time),gap=a[9]-b[9];
@@ -217,17 +244,17 @@ function makeBroadcastShots(runs){
   if(changed&&time>3)pendingPass={time,driver:previousLeader,leader:stableLeader};
   const sinceCut=time-shots.at(-1).start;
   if(time>=firstFinish-2){cut(time,'finish',winningDriver,'Finish line',end-time);break;}
-  if(pendingPass&&pendingPass.leader===stableLeader&&time-pendingPass.time<3&&sinceCut>=2.5){
-   cut(time,'cockpit',pendingPass.driver,'Lead change',4.5);pendingPass=null;lastBattle=time;continue;
+  if(pendingPass&&pendingPass.leader===stableLeader&&time-pendingPass.time<6&&sinceCut>=5){
+   cut(time,'cockpit',pendingPass.driver,'Lead change',7);pendingPass=null;lastBattle=time;continue;
   }
   const oldGap=Math.abs(sample(runs[0],Math.max(0,time-1))[9]-sample(runs[1],Math.max(0,time-1))[9]);
   const close=Math.abs(gap)>3&&Math.abs(gap)<28&&Math.hypot(a[1]-b[1],a[2]-b[2])<40;
-  if(time>4&&close&&oldGap-Math.abs(gap)>1.5&&time-lastBattle>=10&&sinceCut>=3){
-   cut(time,'cockpit',1-leader,'Closing battle',4.5);lastBattle=time;continue;
+  if(time>4&&close&&oldGap-Math.abs(gap)>1.5&&time-lastBattle>=14&&sinceCut>=5){
+   cut(time,'cockpit',1-leader,'Closing battle',7);lastBattle=time;continue;
   }
   if(time>=nextCut){
    const kind=cycle[sequence%cycle.length],driver=sequence%3===1?1-leader:leader;
-   cut(time,kind,driver,'Race coverage',kind==='drone'?5.5:kind==='cockpit'?4:4.5);sequence++;
+   cut(time,kind,driver,'Race coverage',kind==='drone'?8:7);sequence++;
   }
  }
  return shots;
@@ -269,18 +296,17 @@ function broadcastCamera(shot,states,forward,side){
 }
 
 const captureMode=new URLSearchParams(location.search).has("capture");
-function footprintsOverlap(a,b){
+function footprintClearance(a,b){
  const axes=[a[3],a[3]+Math.PI/2,b[3],b[3]+Math.PI/2];
- return axes.every(angle=>{
+ return Math.max(...axes.map(angle=>{
   const radius=s=>2.85*Math.abs(Math.cos(angle-s[3]))+1.2*Math.abs(Math.sin(angle-s[3]));
-  return Math.abs((a[1]-b[1])*Math.cos(angle)+(a[2]-b[2])*Math.sin(angle))<radius(a)+radius(b);
- });
+  return Math.abs((a[1]-b[1])*Math.cos(angle)+(a[2]-b[2])*Math.sin(angle))-radius(a)-radius(b);
+ }));
 }
 function tick(now){if(!captureMode)requestAnimationFrame(tick);const dt=clamp((now-last)/1000,0,.1);last=now;if(playing)t=Math.min(tmax,t+dt*rate);if(t===tmax)playing=false;
  const states=data.runs.map(r=>sample(r,t));states.forEach((s,i)=>{const c=cars[i];c.position.set(s[1],0,-s[2]);c.rotation.y=s[3];c.userData.wheels.forEach(w=>{w.pivot.rotation.y=w.front?s[5]*.35:0;w.wheel.rotation.z=-s[9]/.37;});});
- // These are independent ghost laps. Coincident opaque body panels z-fight;
- // keep the selected car visible until the two car-sized footprints separate.
- const overlap=footprintsOverlap(states[0],states[1]);
+ // Fade both overlapping ghosts; ease back to solid across two metres.
+ const opacity=.4+.6*THREE.MathUtils.smoothstep(footprintClearance(states[0],states[1]),0,2);
  if(mode==='f1'){
   const shot=broadcastShots.findLast(shot=>shot.start<=t)||broadcastShots[0];
   if(shot!==broadcastShot){broadcastShot=shot;selectDriver(shot.driver);snap=true;}
@@ -296,7 +322,7 @@ function tick(now){if(!captureMode)requestAnimationFrame(tick);const dt=clamp((n
  shadowAnchor.copy(c.position);
  for(const axis of [shadowRight,shadowUp]){const value=c.position.dot(axis);shadowAnchor.addScaledVector(axis,Math.round(value/shadowTexel)*shadowTexel-value);}
  sun.position.copy(shadowAnchor).add(sunOffset);sun.target.position.copy(shadowAnchor);sun.target.updateMatrixWorld();
- cars.forEach((car,i)=>{car.visible=!overlap||i===selected;});markers.forEach((m,i)=>{m.visible=mode==='aerial'&&(!overlap||i===selected);m.position.copy(cars[i].position);m.position.y=10;});
+ cars.forEach((car,i)=>setCarOpacity(car,opacity,i));markers.forEach((m,i)=>{m.visible=mode==='aerial';m.position.copy(cars[i].position);m.position.y=10;});
  $('speed').textContent=Math.round(t>=data.runs[selected].lap?0:s[4]*3.6);$('throttle').style.height=(t>=data.runs[selected].lap?0:s[6]*100)+'%';$('brake').style.height=(t>=data.runs[selected].lap?0:s[7]*100)+'%';
  $('clock').textContent=`${Math.floor(t/60)}:${(t%60).toFixed(2).padStart(5,'0')}`;$('scrub').value=t;$('play').textContent=playing?'Ⅱ':'▶';$('play').setAttribute('aria-label',playing?'Pause':'Play');
  lapTimers.forEach((el,i)=>{el.textContent=Math.min(t,data.runs[i].lap).toFixed(3);});
@@ -310,7 +336,7 @@ $('play').onclick=()=>{if(t>=tmax)t=0;playing=!playing;};$('reset').onclick=()=>
 $('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>{});};
 window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='INPUT'&&e.target.tagName!=='BUTTON'){e.preventDefault();$('play').click();}});
 window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.fov=innerWidth<600?68:43;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);if(composer)composer.setSize(innerWidth,innerHeight);if(captureMode)tick(performance.now());});
-window.replay3d={seek(value){t=clamp(value,0,tmax);playing=false;snap=true;},setCamera:setMode,render(value){if(!captureMode)throw new Error("Use ?capture for frame export");t=clamp(value,0,tmax);playing=false;snap=true;tick(performance.now());},get state(){return {time:t,playing,mode,selected,broadcastShot:mode==='f1'?broadcastShot:null,broadcastShots,cameraPosition:camera.position.toArray(),cameraFov:camera.fov,laps:data.runs.map(r=>r.lap),positions:cars.map(c=>c.position.toArray()),visibleCars:cars.map(c=>c.visible),scenery,calls:renderer.info.render.calls};}};
+window.replay3d={seek(value){t=clamp(value,0,tmax);playing=false;snap=true;},setCamera:setMode,render(value){if(!captureMode)throw new Error("Use ?capture for frame export");t=clamp(value,0,tmax);playing=false;snap=true;tick(performance.now());},get state(){return {time:t,playing,mode,selected,broadcastShot:mode==='f1'?broadcastShot:null,broadcastShots,cameraPosition:camera.position.toArray(),cameraFov:camera.fov,laps:data.runs.map(r=>r.lap),positions:cars.map(c=>c.position.toArray()),visibleCars:cars.map(c=>c.visible),carOpacity:cars.map(c=>c.userData.opacity),scenery,calls:renderer.info.render.calls};}};
 if(data.comparisons?.[comparison])setMode(comparison==='champions'?'chase':'duel');
 if(new URLSearchParams(location.search).get('camera')==='f1')setMode('f1');
 $('loading').remove();requestAnimationFrame(tick);

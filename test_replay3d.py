@@ -47,16 +47,18 @@ def main():
             for time in [5, 5.03, 5.06, 8, 12]:
                 page.evaluate('t => replay3d.render(t)', time)
                 state = page.evaluate('replay3d.state')
-                assert sum(state['visibleCars']) == 1
+                assert all(state['visibleCars'])
+                assert all(alpha == .4 for alpha in state['carOpacity'])
                 assert state['visibleCars'][state['selected']]
                 assert page.locator('#hint, #gap').count() == 0
             page.evaluate('replay3d.render(17)')
             assert all(page.evaluate('replay3d.state.visibleCars'))
+            assert page.evaluate('replay3d.state.carOpacity') == [1, 1]
             shots = page.evaluate("replay3d.state.broadcastShots")
             assert {"drone", "front", "trackside", "cockpit", "chase", "finish"} <= {
                 shot["kind"] for shot in shots
             }
-            assert all(b["start"] - a["start"] >= 2.5
+            assert all(b["start"] - a["start"] >= 5
                        for a, b in zip(shots, shots[1:]) if b["kind"] != "finish")
             for shot in shots:
                 page.evaluate("t => replay3d.render(t)", shot["start"] + .1)
@@ -104,7 +106,8 @@ def main():
             assert len(passes) == 1 and passes[0]["driver"] == 0
             assert passes[0]["kind"] == "cockpit" and passes[0]["start"] > 10
             page.evaluate('replay3d.render(10)')
-            assert sum(page.evaluate('replay3d.state.visibleCars')) == 1
+            assert all(page.evaluate('replay3d.state.visibleCars'))
+            assert page.evaluate('replay3d.state.carOpacity') == [.4, .4]
             # Close side-by-side cars should both remain visible.
             for sample in synthetic['comparisons']['champions']['runs'][1]['trace']:
                 sample[2] = 3
